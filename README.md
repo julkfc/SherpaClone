@@ -72,6 +72,6 @@ Apache 2.0。详见 [LICENSE](LICENSE)。
 ## 致谢
 
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) — 端侧推理引擎
-- [GitHub Copilot](https://github.com/features/copilot) — AI 编程助手（DeepSeek V4 Flash）
+- [DeepSeek](https://deepseek.com/) V4 Flash — AI 编程助手
 
 > 本项目代码完全独立编写。项目结构受 [VoxSherpa-TTS](https://github.com/CodeBySonu95/VoxSherpa-TTS) 思路启发，但未使用或复制其任何代码。
