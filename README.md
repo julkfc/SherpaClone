@@ -10,19 +10,44 @@ Android 离线中文语音克隆 App（基于 [sherpa-onnx](https://github.com/k
 - 🎚️ **多模型一键切换**（ZipVoice / PocketTTS / Kokoro）
 - ✅ **ZipVoice 生成闪退问题已解决**
 
-## 快速开始
+## 前提条件
+
+- Android SDK 34+
+- JDK 17+
+- Android 手机（API 26+）
+
+## 构建 & 运行
+
+**① 克隆并编译**
 
 ```bash
 git clone https://github.com/julkfc/SherpaClone
 cd SherpaClone
-# 设置 Android SDK 路径后编译
 ./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## 模型部署
+APK 生成在 `app/build/outputs/apk/debug/app-debug.apk`
 
-从 [sherpa-onnx TTS Models Release](https://github.com/k2-fsa/sherpa-onnx/releases/tag/tts-models) 下载模型文件，放入手机：
+**② 下载模型文件**
+
+模型约 100MB，从 sherpa-onnx 官方 Release 下载：
+
+```bash
+# ZipVoice 中文+英文克隆模型
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/sherpa-onnx-zipvoice-distill-int8-zh-en-emilia.tar.bz2
+# Vocoder（必需）
+wget https://github.com/k2-fsa/sherpa-onnx/releases/download/vocoder-models/vocos_24khz.onnx
+```
+
+**③ 部署到手机**
+
+```bash
+# 安装 APK
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+# 将模型文件放到手机（路径见下方说明）
+```
+
+手机上的目录结构：
 
 ```
 内部存储/Android/data/com.example.voicecloner/files/tts_models/
@@ -33,14 +58,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
     ├── tokens.txt
     └── lexicon.txt
 ```
-
-## 构建
-
-```bash
-./gradlew assembleDebug
-```
-
-APK 输出：`app/build/outputs/apk/debug/app-debug.apk`
 
 ## 许可证
 
