@@ -8,7 +8,7 @@ Android 离线中文语音克隆 App（基于 [sherpa-onnx](https://github.com/k
 - 🀄 **中文 + 英文**双引擎支持（ZipVoice）
 - 📱 **完全离线运行**，无需网络
 - 🎚️ **多模型一键切换**（ZipVoice / PocketTTS / Kokoro）
-- ✅ **ZipVoice 生成闪退问题已解决**
+- ✅ **ZipVoice 生成闪退问题已解决**（排查过程详见 [TROUBLESHOOTING.md](TROUBLESHOOTING.md)）
 
 ## 下载 APK
 
