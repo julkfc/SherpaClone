@@ -10,6 +10,10 @@ Android 离线中文语音克隆 App（基于 [sherpa-onnx](https://github.com/k
 - 🎚️ **多模型一键切换**（ZipVoice / PocketTTS / Kokoro）
 - ✅ **ZipVoice 生成闪退问题已解决**
 
+## 下载 APK
+
+👉 [Releases](https://github.com/julkfc/SherpaClone/releases) 页面有编译好的 APK，可直接安装。
+
 ## 前提条件
 
 - Android SDK 34+

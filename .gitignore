@@ -30,6 +30,9 @@ Thumbs.db
 # Private documents
 文件/
 
+# Release APK
+SherpaClone-*.apk
+
 # Model files
 *.onnx
 *.tar.bz2
