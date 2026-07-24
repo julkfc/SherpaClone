@@ -1,0 +1,35 @@
+# Android
+*.apk
+*.aab
+*.dex
+*.class
+bin/
+
+# Build output
+app/build/
+build/
+
+# Gradle
+.gradle/
+gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+.settings/
+.project
+.classpath
+
+# Local
+local.properties
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Private documents
+文件/
+
+# Model files
+*.onnx
+*.tar.bz2

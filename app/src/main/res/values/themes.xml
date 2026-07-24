@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.VoiceCloner" parent="Theme.MaterialComponents.DayNight.DarkActionBar">
+        <item name="colorPrimary">#1D61FF</item>
+        <item name="colorPrimaryVariant">#1550E0</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#FF4B4B</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+    </style>
+</resources>
