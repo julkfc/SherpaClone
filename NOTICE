@@ -1,0 +1,14 @@
+SherpaClone - NOTICE
+
+Copyright 2026 SherpaClone Contributors
+
+This software includes code from the following third-party projects:
+
+---
+
+sherpa-onnx (https://github.com/k2-fsa/sherpa-onnx)
+Copyright 2022-2025 Xiaomi Corporation
+Licensed under the Apache License, Version 2.0.
+
+The Java API source code under com.k2fsa.sherpa.onnx package
+is taken from the sherpa-onnx project.

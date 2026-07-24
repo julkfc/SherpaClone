@@ -13,7 +13,7 @@ Android 离线中文语音克隆 App（基于 [sherpa-onnx](https://github.com/k
 ## 快速开始
 
 ```bash
-git clone https://github.com/你的用户名/SherpaClone
+git clone https://github.com/julkfc/SherpaClone
 cd SherpaClone
 # 设置 Android SDK 路径后编译
 ./gradlew assembleDebug
@@ -51,4 +51,5 @@ Apache 2.0。详见 [LICENSE](LICENSE)。
 ## 致谢
 
 - [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) — 端侧推理引擎
-- [VoxSherpa-TTS](https://github.com/CodeBySonu95/VoxSherpa-TTS) — 参考实现
+
+> 本项目代码完全独立编写。项目结构受 [VoxSherpa-TTS](https://github.com/CodeBySonu95/VoxSherpa-TTS) 思路启发，但未使用或复制其任何代码。
