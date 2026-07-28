@@ -2,12 +2,16 @@ package com.example.voicecloner;
 
 import android.media.AudioAttributes;
 import android.media.AudioFormat;
+import android.media.AudioRecord;
 import android.media.AudioTrack;
 import android.media.MediaRecorder;
 import android.util.Log;
 
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.RandomAccessFile;
 
 /**
  * 音频工具：播放/录音/WAV读写（float[] PCM）
@@ -15,7 +19,9 @@ import java.io.FileInputStream;
 public class AudioUtils {
     private static final String TAG = "AudioUtils";
     private static AudioTrack audioTrack;
-    private static MediaRecorder mediaRecorder;
+    private static AudioRecord audioRecord;
+    private static Thread recordingThread;
+    private static volatile boolean isRecording;
     private static String currentRecordingPath;
 
     /** 播放 float[] PCM */
@@ -53,14 +59,50 @@ public class AudioUtils {
         stopRecording();
         try {
             currentRecordingPath = outputPath;
-            mediaRecorder = new MediaRecorder();
-            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
-            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP);
-            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AMR_NB);
-            mediaRecorder.setAudioSamplingRate(16000);
-            mediaRecorder.setOutputFile(outputPath);
-            mediaRecorder.prepare();
-            mediaRecorder.start();
+            int sampleRate = 16000;
+            int channelConfig = AudioFormat.CHANNEL_IN_MONO;
+            int audioFormat = AudioFormat.ENCODING_PCM_16BIT;
+            int bufferSize = AudioRecord.getMinBufferSize(sampleRate, channelConfig, audioFormat);
+            if (bufferSize < 4096) bufferSize = 4096;
+
+            audioRecord = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                sampleRate, channelConfig, audioFormat, bufferSize);
+            if (audioRecord.getState() != AudioRecord.STATE_INITIALIZED) {
+                Log.e(TAG, "AudioRecord init failed");
+                audioRecord.release();
+                audioRecord = null;
+                return false;
+            }
+
+            // 先写 WAV 头（占位，录完后回填大小）
+            File outFile = new File(outputPath);
+            DataOutputStream dos = new DataOutputStream(new FileOutputStream(outFile));
+            writeWavHeader(dos, sampleRate);
+            dos.flush();
+            dos.close();
+
+            isRecording = true;
+            audioRecord.startRecording();
+
+            // 后台线程持续写入 PCM 数据
+            final int bufSize = bufferSize;
+            recordingThread = new Thread(() -> {
+                try {
+                    byte[] buf = new byte[bufSize];
+                    RandomAccessFile raf = new RandomAccessFile(outputPath, "rw");
+                    raf.seek(44); // 跳过 WAV 头（44 字节）
+                    while (isRecording) {
+                        int read = audioRecord.read(buf, 0, bufSize);
+                        if (read > 0) raf.write(buf, 0, read);
+                    }
+                    raf.close();
+                    // 回填 WAV 头中的真实大小
+                    fixWavHeader(outputPath);
+                } catch (Exception e) {
+                    Log.e(TAG, "Recording write error", e);
+                }
+            }, "AudioRecorder");
+            recordingThread.start();
             return true;
         } catch (Exception e) {
             Log.e(TAG, "startRecording failed", e);
@@ -69,14 +111,68 @@ public class AudioUtils {
     }
 
     public static String stopRecording() {
-        if (mediaRecorder != null) {
-            try { mediaRecorder.stop(); mediaRecorder.release(); } catch (Exception e) { Log.w(TAG, "stopRecording err", e); }
-            mediaRecorder = null;
+        if (audioRecord != null) {
+            isRecording = false;
+            try {
+                if (recordingThread != null) recordingThread.join(2000);
+            } catch (InterruptedException ignored) {}
+            try { audioRecord.stop(); audioRecord.release(); } catch (Exception e) { Log.w(TAG, "stopRecording err", e); }
+            audioRecord = null;
+            recordingThread = null;
         }
         return currentRecordingPath;
     }
 
-    public static boolean isRecording() { return mediaRecorder != null; }
+    public static boolean isRecording() { return audioRecord != null && isRecording; }
+
+    /** 写 WAV 文件头（44 字节，size 字段后续回填） */
+    private static void writeWavHeader(DataOutputStream dos, int sampleRate) throws Exception {
+        int channels = 1;
+        int bitsPerSample = 16;
+        int byteRate = sampleRate * channels * bitsPerSample / 8;
+        int blockAlign = channels * bitsPerSample / 8;
+        dos.writeBytes("RIFF");
+        dos.writeInt(Integer.reverseBytes(36)); // placeholder for file size
+        dos.writeBytes("WAVE");
+        dos.writeBytes("fmt ");
+        dos.writeInt(Integer.reverseBytes(16));
+        dos.writeShort(Short.reverseBytes((short) 1)); // PCM
+        dos.writeShort(Short.reverseBytes((short) channels));
+        dos.writeInt(Integer.reverseBytes(sampleRate));
+        dos.writeInt(Integer.reverseBytes(byteRate));
+        dos.writeShort(Short.reverseBytes((short) blockAlign));
+        dos.writeShort(Short.reverseBytes((short) bitsPerSample));
+        dos.writeBytes("data");
+        dos.writeInt(Integer.reverseBytes(0)); // placeholder for data size
+    }
+
+    /** 录完后回填 WAV 头中的 fileSize 和 dataSize */
+    private static void fixWavHeader(String path) {
+        try {
+            File f = new File(path);
+            int dataSize = (int) f.length() - 44;
+            if (dataSize <= 0) return;
+            RandomAccessFile raf = new RandomAccessFile(f, "rw");
+            // fileSize at offset 4 (little-endian)
+            raf.seek(4);
+            raf.write(intToBytesLE(dataSize + 36));
+            // dataSize at offset 40 (little-endian)
+            raf.seek(40);
+            raf.write(intToBytesLE(dataSize));
+            raf.close();
+        } catch (Exception e) {
+            Log.w(TAG, "fixWavHeader failed", e);
+        }
+    }
+
+    private static byte[] intToBytesLE(int val) {
+        return new byte[]{
+            (byte) (val & 0xFF),
+            (byte) ((val >> 8) & 0xFF),
+            (byte) ((val >> 16) & 0xFF),
+            (byte) ((val >> 24) & 0xFF)
+        };
+    }
 
     /** 读取 WAV 为 float[]（支持扩展头、16bit/32bit float、多通道自动转单声道） */
     public static float[] readWavAsFloats(String path) {

@@ -1,6 +1,7 @@
 package com.example.voicecloner;
 
 import android.Manifest;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Environment;
@@ -38,6 +39,13 @@ import java.util.Locale;
  */
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
+    private static final String PREFS_NAME = "voicecloner_prefs";
+    private static final String KEY_REF_AUDIO_PATH = "ref_audio_path";
+    private static final String KEY_REF_TEXT = "ref_text";
+    private static final String KEY_MODEL_TYPE = "model_type";
+    private static final String KEY_INPUT_TEXT = "input_text";
+    private static final String REF_RECORDED_FILE = "reference_recorded.wav";
+    private static final String REF_SELECTED_FILE = "reference_selected.wav";
 
     private ActivityMainBinding binding;
 
@@ -78,7 +86,7 @@ public class MainActivity extends AppCompatActivity {
         registerForActivityResult(new ActivityResultContracts.GetContent(), uri -> {
             if (uri != null) {
                 try {
-                    String fileName = "reference_audio.wav";
+                    String fileName = REF_SELECTED_FILE;
                     File destFile = new File(getExternalFilesDir(null), fileName);
                     java.io.InputStream is = getContentResolver().openInputStream(uri);
                     if (is != null) {
@@ -164,6 +172,9 @@ public class MainActivity extends AppCompatActivity {
         // 设置按钮监听
         setupButtons();
 
+        // 恢复保存的状态
+        restoreState();
+
         // 检查是否已有模型
         checkModels();
     }
@@ -220,6 +231,9 @@ public class MainActivity extends AppCompatActivity {
                 selectAudioFile();
             }
         });
+
+        // 清除参考音频
+        binding.btnClearRef.setOnClickListener(v -> clearReferenceAudio());
     }
 
     private void startRecording() {
@@ -228,16 +242,25 @@ public class MainActivity extends AppCompatActivity {
             if (path != null) {
                 referenceAudioPath = path;
                 referenceAudioData = AudioUtils.readWavAsFloats(path);
-                referenceSampleRate = 16000;
-                binding.tvRefAudio.setText("已录制参考音频 (16kHz)");
-                binding.btnRecord.setText("开始录音");
+                referenceSampleRate = AudioUtils.getWavSampleRate(path);
+
+                if (referenceAudioData == null || referenceAudioData.length < 100) {
+                    showToast("录音数据为空或太短，请重试");
+                    referenceAudioData = null;
+                    binding.btnRecord.setText("🎙 开始录音");
+                    return;
+                }
+
+                float duration = referenceAudioData.length / (float) referenceSampleRate;
+                binding.tvRefAudio.setText("已录制参考音频 (" + referenceSampleRate + "Hz, " + String.format("%.1f", duration) + "s)");
+                binding.btnRecord.setText("🎙 开始录音");
+                updateStatus("✅ 参考音频已录制 (" + referenceSampleRate + "Hz, " + String.format("%.1f", duration) + "s)");
                 showToast("录音完成");
             }
             return;
         }
 
-        String outputPath = new File(getExternalFilesDir(null),
-            "recording_" + System.currentTimeMillis() + ".3gp").getAbsolutePath();
+        String outputPath = new File(getExternalFilesDir(null), REF_RECORDED_FILE).getAbsolutePath();
         if (AudioUtils.startRecording(outputPath)) {
             binding.btnRecord.setText("⏹ 停止录音");
             updateStatus("正在录音...");
@@ -539,9 +562,107 @@ public class MainActivity extends AppCompatActivity {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
+    private void saveState() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        // 只在路径不为 null 时保存，避免初始化时的 null 覆盖之前的路径
+        if (referenceAudioPath != null) {
+            editor.putString(KEY_REF_AUDIO_PATH, referenceAudioPath);
+        }
+        editor.putString(KEY_REF_TEXT, binding.etRefText.getText().toString());
+        editor.putString(KEY_INPUT_TEXT, binding.etInputText.getText().toString());
+        editor.putString(KEY_MODEL_TYPE, currentModelType.name());
+        editor.apply();
+        Log.d(TAG, "State saved: audio=" + referenceAudioPath + ", model=" + currentModelType);
+    }
+
+    private void restoreState() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+
+        // 恢复模型类型
+        String modelTypeStr = prefs.getString(KEY_MODEL_TYPE, TtsEngineManager.ModelType.ZIPVOICE.name());
+        try {
+            currentModelType = TtsEngineManager.ModelType.valueOf(modelTypeStr);
+        } catch (Exception e) {
+            currentModelType = TtsEngineManager.ModelType.ZIPVOICE;
+        }
+
+        // 恢复文本
+        String refText = prefs.getString(KEY_REF_TEXT, "");
+        String inputText = prefs.getString(KEY_INPUT_TEXT, "你好，这是一个测试。欢迎使用语音克隆功能。");
+        binding.etRefText.setText(refText);
+        binding.etInputText.setText(inputText);
+
+        // 设置模型切换按钮
+        switch (currentModelType) {
+            case ZIPVOICE:
+                binding.btnZipVoice.setChecked(true);
+                break;
+            case POCKET_TTS:
+                binding.btnPocketTts.setChecked(true);
+                break;
+            case KOKORO:
+                binding.btnKokoro.setChecked(true);
+                break;
+        }
+
+        // 恢复参考音频
+        String savedPath = prefs.getString(KEY_REF_AUDIO_PATH, null);
+        if (savedPath != null) {
+            File audioFile = new File(savedPath);
+            if (audioFile.exists() && audioFile.length() > 0) {
+                referenceAudioPath = savedPath;
+                referenceAudioData = AudioUtils.readWavAsFloats(savedPath);
+                referenceSampleRate = AudioUtils.getWavSampleRate(savedPath);
+
+                if (referenceAudioData != null && referenceAudioData.length >= 100) {
+                    float duration = referenceAudioData.length / (float) referenceSampleRate;
+                    binding.tvRefAudio.setText("已加载: " + audioFile.getName() +
+                        " (" + referenceSampleRate + "Hz, " + String.format("%.1f", duration) + "s)");
+                    updateStatus("✅ 已恢复参考音频: " + audioFile.getName());
+                    Log.d(TAG, "Restored reference audio: " + savedPath);
+                } else {
+                    referenceAudioData = null;
+                    Log.w(TAG, "Saved audio file unreadable: " + savedPath);
+                }
+            } else {
+                Log.w(TAG, "Saved audio file missing or empty: " + savedPath);
+            }
+        }
+
+        Log.d(TAG, "State restored: audio=" + referenceAudioPath + ", model=" + currentModelType);
+    }
+
+    private void clearReferenceAudio() {
+        referenceAudioPath = null;
+        referenceAudioData = null;
+        referenceSampleRate = 16000;
+
+        // 删除已保存的音频文件
+        File recorded = new File(getExternalFilesDir(null), REF_RECORDED_FILE);
+        File selected = new File(getExternalFilesDir(null), REF_SELECTED_FILE);
+        if (recorded.exists()) recorded.delete();
+        if (selected.exists()) selected.delete();
+
+        // 清除 SharedPreferences
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        prefs.edit().remove(KEY_REF_AUDIO_PATH).apply();
+
+        binding.tvRefAudio.setText("未选择参考音频");
+        updateStatus("参考音频已清除");
+        showToast("已清除参考音频");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        saveState();
+    }
+
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        saveState();
         AudioUtils.stopPlayback();
         if (AudioUtils.isRecording()) {
             AudioUtils.stopRecording();
